@@ -1,10 +1,44 @@
 import { GoogleGenAI } from "@google/genai";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+let ai: GoogleGenAI | null = null;
+
+const getApiKey = () => {
+  try {
+    if (typeof process !== 'undefined' && process.env.API_KEY) {
+      return process.env.API_KEY;
+    }
+  } catch (e) {}
+  
+  try {
+    // @ts-ignore
+    if (import.meta.env.VITE_API_KEY) {
+      // @ts-ignore
+      return import.meta.env.VITE_API_KEY;
+    }
+  } catch (e) {}
+  
+  return '';
+};
+
+const initializeAI = () => {
+  if (ai) return ai;
+  
+  const key = getApiKey();
+  if (key) {
+    ai = new GoogleGenAI({ apiKey: key });
+  }
+  return ai;
+};
 
 export const askRummySage = async (question: string): Promise<string> => {
+  const client = initializeAI();
+  
+  if (!client) {
+    return "I'm currently offline (API Key missing). Please check the configuration.";
+  }
+
   try {
-    const response = await ai.models.generateContent({
+    const response = await client.models.generateContent({
       model: 'gemini-3-flash-preview',
       contents: question,
       config: {
