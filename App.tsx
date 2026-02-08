@@ -18,26 +18,48 @@ const App: React.FC = () => {
 
   // 1. Auth & Session Management
   useEffect(() => {
+    let mounted = true;
+
+    // Safety timeout - prevents infinite loading if Supabase connection hangs or is misconfigured
+    const timeoutId = setTimeout(() => {
+      if (mounted && loadingSession) {
+        console.warn("Supabase session check timed out - falling back to auth screen");
+        setLoadingSession(false);
+      }
+    }, 5000); // 5 second timeout
+
     if (!isSupabaseConfigured) {
       setLoadingSession(false);
+      clearTimeout(timeoutId);
       return;
     }
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoadingSession(false);
-    }).catch(() => {
-      setLoadingSession(false);
+      if (mounted) {
+        setSession(session);
+        setLoadingSession(false);
+      }
+    }).catch((err) => {
+      console.error("Session check error:", err);
+      if (mounted) {
+        setLoadingSession(false);
+      }
     });
 
     const {
       data: { subscription },
     } = supabase.auth.onAuthStateChange((_event, session) => {
-      setSession(session);
-      setLoadingSession(false);
+      if (mounted) {
+        setSession(session);
+        setLoadingSession(false);
+      }
     });
 
-    return () => subscription.unsubscribe();
+    return () => {
+      mounted = false;
+      clearTimeout(timeoutId);
+      subscription.unsubscribe();
+    };
   }, []);
 
   // 2. Data Subscriptions (only when logged in)
@@ -255,8 +277,8 @@ const App: React.FC = () => {
 
   return (
     <div className="h-full flex flex-col bg-gradient-to-b from-rummy-dark to-black min-h-screen">
-      {/* Top Bar */}
-      <div className="pt-safe px-6 py-4 flex justify-between items-center bg-rummy-dark/50 backdrop-blur-sm z-20 sticky top-0">
+      {/* Top Bar - Safe area adjusted */}
+      <div className="pt-[max(1rem,env(safe-area-inset-top))] px-6 py-4 flex justify-between items-center bg-rummy-dark/50 backdrop-blur-sm z-20 sticky top-0">
         <div>
            <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
              <span className="text-rummy-accent">♠</span> RummyQ

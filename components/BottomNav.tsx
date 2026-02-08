@@ -11,7 +11,7 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, setTab, queueCount, activeGamesCount }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-rummy-card/90 backdrop-blur-md border-t border-white/10 pb-safe pt-2 px-6 h-20 z-50">
+    <div className="fixed bottom-0 left-0 right-0 bg-rummy-card/90 backdrop-blur-md border-t border-white/10 pb-[env(safe-area-inset-bottom)] pt-2 px-6 h-[calc(5rem+env(safe-area-inset-bottom))] z-50">
       <div className="flex justify-around items-center h-full pb-2">
         <button
           onClick={() => setTab('queue')}
