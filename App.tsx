@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { QueueView } from './components/QueueView';
 import { ActiveGamesView } from './components/ActiveGamesView';
+import { RummySage } from './components/RummySage';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
 import { Player, Game, AppTab } from './types';
@@ -147,8 +148,6 @@ const App: React.FC = () => {
   // 3. Handlers
   const handleJoinQueue = useCallback(async (name: string) => {
     if (!isSupabaseConfigured) return;
-    // Optimistic update not strictly needed with fast subscriptions, 
-    // relying on subscription for source of truth to avoid drift
     await supabase.from('queue').insert({
       name,
       avatar_seed: Math.floor(Math.random() * 1000),
@@ -163,9 +162,6 @@ const App: React.FC = () => {
 
   const handleCreateGame = useCallback(async () => {
     if (!isSupabaseConfigured) return;
-    // NOTE: In a production app, this logic should be a Supabase RPC function 
-    // to ensure atomicity and avoid race conditions.
-    // Implementing client-side logic for prototype speed.
     
     // 1. Get top 4 locally (assuming synced)
     const countToPull = Math.min(queue.length, 4);
@@ -196,7 +192,6 @@ const App: React.FC = () => {
 
   const handleSwapPlayers = useCallback(async (gameId: string, playerIdsToRemove: string[]) => {
     if (!isSupabaseConfigured) return;
-    // Similar RPC warning as handleCreateGame.
     const game = activeGames.find(g => g.id === gameId);
     if (!game) return;
 
@@ -212,7 +207,6 @@ const App: React.FC = () => {
     }
 
     // Pull new players from queue
-    // We fetch fresh from queue to be safe, or use local state
     const { data: queueData } = await supabase
         .from('queue')
         .select('*')
@@ -300,6 +294,9 @@ const App: React.FC = () => {
             onCreateGame={handleCreateGame}
             onSwapPlayers={handleSwapPlayers}
           />
+        )}
+        {activeTab === 'chat' && (
+          <RummySage />
         )}
       </main>
 

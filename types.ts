@@ -12,7 +12,7 @@ export interface Game {
   status: 'active' | 'finished';
 }
 
-export type AppTab = 'queue' | 'games';
+export type AppTab = 'queue' | 'games' | 'chat';
 
 export interface ChatMessage {
   id: string;

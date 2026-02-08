@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, LayoutGrid } from 'lucide-react';
+import { Users, LayoutGrid, Sparkles } from 'lucide-react';
 import { AppTab } from '../types';
 
 interface BottomNavProps {
@@ -41,6 +41,16 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, setTab, queueC
             )}
           </div>
           <span className="text-xs font-medium">Tables</span>
+        </button>
+
+        <button
+          onClick={() => setTab('chat')}
+          className={`flex flex-col items-center gap-1 transition-colors ${currentTab === 'chat' ? 'text-rummy-accent' : 'text-gray-400'}`}
+        >
+          <div className="relative">
+            <Sparkles size={24} />
+          </div>
+          <span className="text-xs font-medium">Sage</span>
         </button>
       </div>
     </div>

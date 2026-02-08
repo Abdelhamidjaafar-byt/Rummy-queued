@@ -1,10 +1,22 @@
 import { GoogleGenAI } from "@google/genai";
 
-const apiKey = process.env.API_KEY || '';
-const ai = new GoogleGenAI({ apiKey });
+const getEnv = (key: string) => {
+  try {
+    return process.env[key];
+  } catch (e) {
+    return undefined;
+  }
+};
+
+const apiKey = getEnv('API_KEY') || '';
+// Initialize conditionally to prevent errors if key is missing
+let ai: GoogleGenAI | null = null;
+if (apiKey) {
+  ai = new GoogleGenAI({ apiKey });
+}
 
 export const askRummySage = async (question: string): Promise<string> => {
-  if (!apiKey) {
+  if (!apiKey || !ai) {
     return "I'm currently offline (API Key missing). Please check the configuration.";
   }
 
