@@ -15,7 +15,41 @@
           -ms-overflow-style: none;  /* IE and Edge */
           scrollbar-width: none;  /* Firefox */
       }
+      /* Debug Error Overlay */
+      #debug-error-overlay {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background-color: #0f172a;
+        color: #ef4444;
+        z-index: 10000;
+        padding: 20px;
+        font-family: monospace;
+        font-size: 14px;
+        overflow: auto;
+        white-space: pre-wrap;
+      }
     </style>
+    <script>
+      // Global error handler to catch blank screen issues
+      window.addEventListener('error', function(event) {
+        var overlay = document.getElementById('debug-error-overlay');
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.innerText += 'JS Error: ' + event.message + '\nat ' + event.filename + ':' + event.lineno + '\n\n';
+        }
+      });
+      window.addEventListener('unhandledrejection', function(event) {
+        var overlay = document.getElementById('debug-error-overlay');
+        if (overlay) {
+          overlay.style.display = 'block';
+          overlay.innerText += 'Promise Error: ' + (event.reason ? event.reason.message || event.reason : 'Unknown') + '\n\n';
+        }
+      });
+    </script>
   <script type="importmap">
 {
   "imports": {
@@ -34,6 +68,7 @@
 </script>
 </head>
   <body>
+    <div id="debug-error-overlay"></div>
     <div id="root"></div>
   </body>
 </html>
