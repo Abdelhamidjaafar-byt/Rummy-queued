@@ -12,11 +12,11 @@ export interface Game {
   status: 'active' | 'finished';
 }
 
-export type AppTab = 'queue' | 'games' | 'chat';
-
 export interface ChatMessage {
   id: string;
   role: 'user' | 'assistant';
   text: string;
   timestamp: number;
 }
+
+export type AppTab = 'queue' | 'games';

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { QueueView } from './components/QueueView';
 import { ActiveGamesView } from './components/ActiveGamesView';
-import { RummySage } from './components/RummySage';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
 import { Player, Game, AppTab } from './types';
@@ -294,9 +293,6 @@ const App: React.FC = () => {
             onCreateGame={handleCreateGame}
             onSwapPlayers={handleSwapPlayers}
           />
-        )}
-        {activeTab === 'chat' && (
-          <RummySage />
         )}
       </main>
 
