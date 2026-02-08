@@ -11,38 +11,36 @@ interface BottomNavProps {
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, setTab, queueCount, activeGamesCount }) => {
   return (
-    <div className="fixed bottom-0 left-0 right-0 bg-rummy-card/90 backdrop-blur-md border-t border-white/10 pb-[env(safe-area-inset-bottom)] pt-2 px-6 h-[calc(5rem+env(safe-area-inset-bottom))] z-50">
-      <div className="flex justify-around items-center h-full pb-2">
+    <div className="bottom-nav">
         <button
           onClick={() => setTab('queue')}
-          className={`flex flex-col items-center gap-1 transition-colors ${currentTab === 'queue' ? 'text-rummy-accent' : 'text-gray-400'}`}
+          className={`nav-btn ${currentTab === 'queue' ? 'active' : ''}`}
         >
           <div className="relative">
             <Users size={24} />
             {queueCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-rummy-gold text-rummy-dark text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full">
+              <span className="badge badge-gold">
                 {queueCount}
               </span>
             )}
           </div>
-          <span className="text-xs font-medium">Queue</span>
+          <span className="nav-label">Queue</span>
         </button>
 
         <button
           onClick={() => setTab('games')}
-          className={`flex flex-col items-center gap-1 transition-colors ${currentTab === 'games' ? 'text-rummy-accent' : 'text-gray-400'}`}
+          className={`nav-btn ${currentTab === 'games' ? 'active' : ''}`}
         >
           <div className="relative">
             <LayoutGrid size={24} />
             {activeGamesCount > 0 && (
-              <span className="absolute -top-2 -right-2 bg-rummy-green text-white text-[10px] font-bold w-4 h-4 flex items-center justify-center rounded-full border border-rummy-dark">
+              <span className="badge badge-green">
                 {activeGamesCount}
               </span>
             )}
           </div>
-          <span className="text-xs font-medium">Tables</span>
+          <span className="nav-label">Tables</span>
         </button>
-      </div>
     </div>
   );
 };

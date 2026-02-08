@@ -3,14 +3,18 @@ import { QueueView } from './components/QueueView';
 import { ActiveGamesView } from './components/ActiveGamesView';
 import { BottomNav } from './components/BottomNav';
 import { Auth } from './components/Auth';
+import { DatabaseInstructions } from './components/DatabaseInstructions';
 import { Player, Game, AppTab } from './types';
 import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { LogOut, Loader2 } from 'lucide-react';
+import { LogOut, Loader2, WifiOff } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid';
 
 const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [isDemoMode, setIsDemoMode] = useState(false);
+  const [setupRequired, setSetupRequired] = useState(false);
   
   const [activeTab, setActiveTab] = useState<AppTab>('queue');
   const [queue, setQueue] = useState<Player[]>([]);
@@ -20,13 +24,24 @@ const App: React.FC = () => {
   useEffect(() => {
     let mounted = true;
 
-    // Safety timeout - prevents infinite loading if Supabase connection hangs or is misconfigured
+    if (isDemoMode) {
+      setLoadingSession(false);
+      // Load local data
+      try {
+        const savedQueue = localStorage.getItem('demo_queue');
+        const savedGames = localStorage.getItem('demo_games');
+        if (savedQueue) setQueue(JSON.parse(savedQueue));
+        if (savedGames) setActiveGames(JSON.parse(savedGames));
+      } catch (e) { console.error(e); }
+      return;
+    }
+
     const timeoutId = setTimeout(() => {
       if (mounted && loadingSession) {
-        console.warn("Supabase session check timed out - falling back to auth screen");
+        console.warn("Supabase session check timed out");
         setLoadingSession(false);
       }
-    }, 5000); // 5 second timeout
+    }, 3000);
 
     if (!isSupabaseConfigured) {
       setLoadingSession(false);
@@ -41,14 +56,10 @@ const App: React.FC = () => {
       }
     }).catch((err) => {
       console.error("Session check error:", err);
-      if (mounted) {
-        setLoadingSession(false);
-      }
+      if (mounted) setLoadingSession(false);
     });
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       if (mounted) {
         setSession(session);
         setLoadingSession(false);
@@ -60,20 +71,28 @@ const App: React.FC = () => {
       clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []);
+  }, [isDemoMode]);
 
-  // 2. Data Subscriptions (only when logged in)
+  // 2. Data Subscriptions (Real Supabase)
   useEffect(() => {
-    if (!session || !isSupabaseConfigured) return;
+    if (isDemoMode || !session || !isSupabaseConfigured) return;
 
-    // Fetch Initial Queue
     const fetchQueue = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('queue')
         .select('*')
         .order('joined_at', { ascending: true });
+      
+      if (error) {
+        console.error("Error fetching queue:", error);
+        // PGRST205 is "Relation (table) not found"
+        if (error.code === 'PGRST205') {
+          setSetupRequired(true);
+        }
+        return;
+      }
+      
       if (data) {
-        // Map snake_case DB to camelCase Types if needed, currently matching closely
         const mappedQueue: Player[] = data.map((item: any) => ({
           id: item.id,
           name: item.name,
@@ -84,16 +103,24 @@ const App: React.FC = () => {
       }
     };
 
-    // Fetch Initial Games
     const fetchGames = async () => {
-      const { data } = await supabase
+      const { data, error } = await supabase
         .from('active_games')
         .select('*')
         .order('start_time', { ascending: false });
+
+      if (error) {
+        console.error("Error fetching games:", error);
+        if (error.code === 'PGRST205') {
+          setSetupRequired(true);
+        }
+        return;
+      }
+
       if (data) {
         const mappedGames: Game[] = data.map((item: any) => ({
           id: item.id,
-          players: item.players, // JSONB comes back as object
+          players: item.players,
           startTime: item.start_time,
           status: item.status
         }));
@@ -104,7 +131,6 @@ const App: React.FC = () => {
     fetchQueue();
     fetchGames();
 
-    // Subscribe to Queue Changes
     const queueSub = supabase
       .channel('queue_channel')
       .on(
@@ -126,7 +152,6 @@ const App: React.FC = () => {
       )
       .subscribe();
 
-    // Subscribe to Games Changes
     const gamesSub = supabase
       .channel('games_channel')
       .on(
@@ -163,34 +188,68 @@ const App: React.FC = () => {
       supabase.removeChannel(queueSub);
       supabase.removeChannel(gamesSub);
     };
-  }, [session]);
+  }, [session, isDemoMode]);
 
+  // Persist local state in demo mode
+  useEffect(() => {
+    if (isDemoMode) {
+      localStorage.setItem('demo_queue', JSON.stringify(queue));
+      localStorage.setItem('demo_games', JSON.stringify(activeGames));
+    }
+  }, [queue, activeGames, isDemoMode]);
 
   // 3. Handlers
   const handleJoinQueue = useCallback(async (name: string) => {
+    if (isDemoMode) {
+      const newPlayer: Player = {
+        id: uuidv4(),
+        name,
+        avatarSeed: Math.floor(Math.random() * 1000),
+        joinedAt: Date.now()
+      };
+      setQueue(prev => [...prev, newPlayer]);
+      return;
+    }
+
     if (!isSupabaseConfigured) return;
     await supabase.from('queue').insert({
       name,
       avatar_seed: Math.floor(Math.random() * 1000),
       joined_at: Date.now()
     });
-  }, []);
+  }, [isDemoMode]);
 
   const handleRemoveFromQueue = useCallback(async (id: string) => {
+    if (isDemoMode) {
+      setQueue(prev => prev.filter(p => p.id !== id));
+      return;
+    }
+
     if (!isSupabaseConfigured) return;
     await supabase.from('queue').delete().eq('id', id);
-  }, []);
+  }, [isDemoMode]);
 
   const handleCreateGame = useCallback(async () => {
-    if (!isSupabaseConfigured) return;
-    
-    // 1. Get top 4 locally (assuming synced)
     const countToPull = Math.min(queue.length, 4);
     if (countToPull === 0) return;
 
     const playersForGame = queue.slice(0, countToPull);
+
+    if (isDemoMode) {
+      const newGame: Game = {
+        id: uuidv4(),
+        players: playersForGame,
+        startTime: Date.now(),
+        status: 'active'
+      };
+      setActiveGames(prev => [newGame, ...prev]);
+      setQueue(prev => prev.slice(countToPull));
+      setActiveTab('games');
+      return;
+    }
+
+    if (!isSupabaseConfigured) return;
     
-    // 2. Insert Game
     const { error } = await supabase.from('active_games').insert({
       players: playersForGame,
       start_time: Date.now(),
@@ -198,21 +257,23 @@ const App: React.FC = () => {
     });
 
     if (!error) {
-       // 3. Delete from Queue (batch)
        const idsToRemove = playersForGame.map(p => p.id);
        await supabase.from('queue').delete().in('id', idsToRemove);
-       
        setActiveTab('games');
     }
-  }, [queue]);
+  }, [queue, isDemoMode]);
 
   const handleFinishGame = useCallback(async (gameId: string) => {
+    if (isDemoMode) {
+      setActiveGames(prev => prev.filter(g => g.id !== gameId));
+      return;
+    }
+
     if (!isSupabaseConfigured) return;
     await supabase.from('active_games').delete().eq('id', gameId);
-  }, []);
+  }, [isDemoMode]);
 
   const handleSwapPlayers = useCallback(async (gameId: string, playerIdsToRemove: string[]) => {
-    if (!isSupabaseConfigured) return;
     const game = activeGames.find(g => g.id === gameId);
     if (!game) return;
 
@@ -220,77 +281,113 @@ const App: React.FC = () => {
     const slotsNeeded = 4 - keptPlayers.length;
 
     if (slotsNeeded <= 0) {
-        // Just remove players
-        await supabase.from('active_games').update({
-           players: keptPlayers
-        }).eq('id', gameId);
+        if (isDemoMode) {
+           setActiveGames(prev => prev.map(g => g.id === gameId ? {...g, players: keptPlayers} : g));
+        } else {
+           await supabase.from('active_games').update({ players: keptPlayers }).eq('id', gameId);
+        }
         return;
     }
 
-    // Pull new players from queue
-    const { data: queueData } = await supabase
-        .from('queue')
-        .select('*')
-        .order('joined_at', { ascending: true })
-        .limit(slotsNeeded);
+    let newPlayers: Player[] = [];
 
-    if (queueData) {
-       const newPlayers: Player[] = queueData.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          avatarSeed: item.avatar_seed,
-          joinedAt: item.joined_at
-       }));
-       
-       const updatedPlayers = [...keptPlayers, ...newPlayers];
+    if (isDemoMode) {
+       newPlayers = queue.slice(0, slotsNeeded);
+    } else {
+      const { data: queueData } = await supabase
+          .from('queue')
+          .select('*')
+          .order('joined_at', { ascending: true })
+          .limit(slotsNeeded);
 
-       // Update Game
+      if (queueData) {
+         newPlayers = queueData.map((item: any) => ({
+            id: item.id,
+            name: item.name,
+            avatarSeed: item.avatar_seed,
+            joinedAt: item.joined_at
+         }));
+      }
+    }
+
+    const updatedPlayers = [...keptPlayers, ...newPlayers];
+
+    if (isDemoMode) {
+       setActiveGames(prev => prev.map(g => g.id === gameId ? {...g, players: updatedPlayers} : g));
+       if (newPlayers.length > 0) {
+         const idsToRemove = newPlayers.map(p => p.id);
+         setQueue(prev => prev.filter(p => !idsToRemove.includes(p.id)));
+       }
+    } else {
        await supabase.from('active_games').update({
           players: updatedPlayers
        }).eq('id', gameId);
 
-       // Remove new players from queue
        if (newPlayers.length > 0) {
          const idsToRemove = newPlayers.map(p => p.id);
          await supabase.from('queue').delete().in('id', idsToRemove);
        }
     }
 
-  }, [activeGames]);
+  }, [activeGames, queue, isDemoMode]);
 
   const handleLogout = () => {
-    supabase.auth.signOut();
+    if (isDemoMode) {
+      setIsDemoMode(false);
+      setSession(null);
+    } else {
+      supabase.auth.signOut();
+    }
   };
 
+  const enterDemoMode = () => {
+    setIsDemoMode(true);
+  };
 
   if (loadingSession) {
     return (
-      <div className="h-screen bg-rummy-dark flex items-center justify-center">
-        <Loader2 size={40} className="text-rummy-accent animate-spin" />
+      <div className="app-container justify-center items-center">
+        <Loader2 size={40} className="text-accent animate-spin" />
       </div>
     );
   }
 
-  if (!session) {
-    return <Auth />;
+  // If tables are missing, show instructions
+  if (setupRequired && !isDemoMode) {
+    return (
+      <div className="app-container">
+        <DatabaseInstructions />
+      </div>
+    );
+  }
+
+  if (!session && !isDemoMode) {
+    return <Auth onDemoLogin={enterDemoMode} />;
   }
 
   return (
-    <div className="h-full flex flex-col bg-gradient-to-b from-rummy-dark to-black min-h-screen">
-      {/* Top Bar - Safe area adjusted */}
-      <div className="pt-[max(1rem,env(safe-area-inset-top))] px-6 py-4 flex justify-between items-center bg-rummy-dark/50 backdrop-blur-sm z-20 sticky top-0">
+    <div className="app-container">
+      {/* Top Bar */}
+      <div className="top-bar">
         <div>
-           <h1 className="text-2xl font-black text-white tracking-tight flex items-center gap-2">
-             <span className="text-rummy-accent">♠</span> RummyQ
+           <h1 className="app-title">
+             <span className="text-accent">♠</span> RummyQ
            </h1>
         </div>
         <div className="flex items-center gap-3">
-          <div className="text-xs font-mono text-gray-500 border border-white/10 px-2 py-1 rounded hidden sm:block">
-            {session.user.email}
-          </div>
+          {isDemoMode ? (
+             <div className="user-badge" style={{ borderColor: 'var(--rummy-gold)', color: 'var(--rummy-gold)', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
+                <WifiOff size={10} />
+                OFFLINE DEMO
+             </div>
+          ) : (
+            <div className="user-badge">
+              {session?.user.email}
+            </div>
+          )}
           <button 
             onClick={handleLogout}
-            className="p-2 bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 rounded-full transition-colors"
+            className="btn-icon"
             title="Logout"
           >
             <LogOut size={16} />
@@ -299,7 +396,7 @@ const App: React.FC = () => {
       </div>
 
       {/* Main Content Area */}
-      <main className="flex-1 overflow-hidden relative">
+      <main className="main-content">
         {activeTab === 'queue' && (
           <QueueView 
             queue={queue} 

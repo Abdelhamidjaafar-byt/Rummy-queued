@@ -3,7 +3,7 @@ import React, { useMemo } from 'react';
 interface PlayerAvatarProps {
   seed: number;
   name: string;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg';
   className?: string;
 }
 
@@ -14,15 +14,7 @@ const COLORS = [
 ];
 
 export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ seed, name, size = 'md', className = '' }) => {
-  const sizeClasses = {
-    sm: 'w-8 h-8',
-    md: 'w-10 h-10',
-    lg: 'w-16 h-16',
-    xl: 'w-20 h-20'
-  };
-
   const { bgColor, eyes, mouth, accessory } = useMemo(() => {
-    // Simple pseudo-random number generator
     let s = seed;
     const rand = () => {
       const x = Math.sin(s++) * 10000;
@@ -32,20 +24,18 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ seed, name, size = '
     const bgColor = COLORS[Math.floor(rand() * COLORS.length)];
     const eyes = Math.floor(rand() * 4); 
     const mouth = Math.floor(rand() * 4);
-    const accessory = Math.floor(rand() * 4); // 0: none, 1: glasses, 2: blush, 3: stubble
+    const accessory = Math.floor(rand() * 4); 
 
     return { bgColor, eyes, mouth, accessory };
   }, [seed]);
 
   return (
     <div 
-      className={`rounded-full overflow-hidden flex-shrink-0 relative shadow-inner border border-black/10 ${sizeClasses[size]} ${className}`}
+      className={`avatar-container avatar-${size} ${className}`}
       style={{ backgroundColor: bgColor }}
       title={name}
     >
-       <svg viewBox="0 0 100 100" className="w-full h-full text-white/90 transform transition-transform hover:scale-105 duration-300">
-          {/* Base Head Shape (implied by circle container) */}
-          
+       <svg viewBox="0 0 100 100" className="avatar-svg">
           {/* Eyes */}
           <g transform="translate(0, 5)">
             {eyes === 0 && (
@@ -118,8 +108,8 @@ export const PlayerAvatar: React.FC<PlayerAvatarProps> = ({ seed, name, size = '
              </g>
           )}
        </svg>
-       {/* Initials overlay for quick ID */}
-       <div className="absolute inset-0 flex items-center justify-center text-white/30 font-black text-[50%] select-none pointer-events-none uppercase mix-blend-overlay">
+       {/* Initials overlay */}
+       <div className="avatar-overlay">
           {name.substring(0, 1)}
        </div>
     </div>
