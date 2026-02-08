@@ -1,0 +1,5 @@
+{
+  "name": "RummyQueue",
+  "description": "A mobile-first queue management app for 4-player Rummy games.",
+  "requestFramePermissions": []
+}
