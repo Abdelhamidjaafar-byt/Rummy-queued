@@ -10,14 +10,22 @@ interface BottomNavProps {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, setTab, queueCount, activeGamesCount }) => {
+  const handleTabChange = (tab: AppTab) => {
+    // Simple haptic feedback if available
+    if (typeof navigator !== 'undefined' && navigator.vibrate) {
+      navigator.vibrate(10);
+    }
+    setTab(tab);
+  };
+
   return (
     <div className="bottom-nav">
         <button
-          onClick={() => setTab('queue')}
+          onClick={() => handleTabChange('queue')}
           className={`nav-btn ${currentTab === 'queue' ? 'active' : ''}`}
         >
           <div className="relative">
-            <Users size={24} />
+            <Users size={26} />
             {queueCount > 0 && (
               <span className="badge badge-gold">
                 {queueCount}
@@ -28,11 +36,11 @@ export const BottomNav: React.FC<BottomNavProps> = ({ currentTab, setTab, queueC
         </button>
 
         <button
-          onClick={() => setTab('games')}
+          onClick={() => handleTabChange('games')}
           className={`nav-btn ${currentTab === 'games' ? 'active' : ''}`}
         >
           <div className="relative">
-            <LayoutGrid size={24} />
+            <LayoutGrid size={26} />
             {activeGamesCount > 0 && (
               <span className="badge badge-green">
                 {activeGamesCount}

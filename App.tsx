@@ -144,9 +144,27 @@ const App: React.FC = () => {
               avatarSeed: payload.new.avatar_seed,
               joinedAt: payload.new.joined_at
             };
-            setQueue(prev => [...prev, newPlayer]);
+            setQueue(prev => {
+              // Avoid duplicates if we inserted it locally
+              if (prev.some(p => p.id === newPlayer.id)) return prev;
+              return [...prev, newPlayer].sort((a, b) => a.joinedAt - b.joinedAt);
+            });
           } else if (payload.eventType === 'DELETE') {
             setQueue(prev => prev.filter(p => p.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setQueue(prev => {
+              const updated = prev.map(p => {
+                if (p.id === payload.new.id) {
+                  return {
+                    ...p,
+                    name: payload.new.name,
+                    joinedAt: payload.new.joined_at
+                  };
+                }
+                return p;
+              });
+              return updated.sort((a, b) => a.joinedAt - b.joinedAt);
+            });
           }
         }
       )
@@ -228,6 +246,52 @@ const App: React.FC = () => {
     if (!isSupabaseConfigured) return;
     await supabase.from('queue').delete().eq('id', id);
   }, [isDemoMode]);
+
+  const handleUpdatePlayerName = useCallback(async (id: string, newName: string) => {
+    if (isDemoMode) {
+      setQueue(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+      return;
+    }
+
+    if (!isSupabaseConfigured) return;
+    // Optimistic update
+    setQueue(prev => prev.map(p => p.id === id ? { ...p, name: newName } : p));
+    await supabase.from('queue').update({ name: newName }).eq('id', id);
+  }, [isDemoMode]);
+
+  const handleMovePlayer = useCallback(async (playerId: string, direction: 'up' | 'down') => {
+    const index = queue.findIndex(p => p.id === playerId);
+    if (index === -1) return;
+    if (direction === 'up' && index === 0) return;
+    if (direction === 'down' && index === queue.length - 1) return;
+
+    const targetIndex = direction === 'up' ? index - 1 : index + 1;
+    const playerA = queue[index];
+    const playerB = queue[targetIndex];
+
+    // Swap joinedAt timestamps to effectively reorder them in the sorted list
+    // Note: We need to handle potential collision if we were strictly using time, but swapping existing timestamps is safe.
+    const timeA = playerA.joinedAt;
+    const timeB = playerB.joinedAt;
+
+    // Optimistic Update
+    const newQueue = [...queue];
+    newQueue[index] = { ...playerA, joinedAt: timeB };
+    newQueue[targetIndex] = { ...playerB, joinedAt: timeA };
+    // Re-sort immediately
+    newQueue.sort((a, b) => a.joinedAt - b.joinedAt);
+    setQueue(newQueue);
+
+    if (isDemoMode) return;
+
+    if (isSupabaseConfigured) {
+      // Upsert both rows with swapped timestamps
+      await supabase.from('queue').upsert([
+        { id: playerA.id, name: playerA.name, avatar_seed: playerA.avatarSeed, joined_at: timeB },
+        { id: playerB.id, name: playerB.name, avatar_seed: playerB.avatarSeed, joined_at: timeA }
+      ]);
+    }
+  }, [queue, isDemoMode]);
 
   const handleCreateGame = useCallback(async () => {
     const countToPull = Math.min(queue.length, 4);
@@ -402,6 +466,8 @@ const App: React.FC = () => {
             queue={queue} 
             onJoin={handleJoinQueue}
             onRemove={handleRemoveFromQueue}
+            onUpdateName={handleUpdatePlayerName}
+            onMovePlayer={handleMovePlayer}
           />
         )}
         {activeTab === 'games' && (
